@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +42,31 @@ public class TestExecutionService {
             sb.append("======================================");
             return sb.toString();
         }
+    }
+
+    /**
+     * Tự động xác định lệnh Maven phù hợp (ưu tiên mvnw.cmd trên Windows hoặc ./mvnw nếu có)
+     */
+    public String resolveMavenCommand(String projectDir) {
+        boolean isWindows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+        String wrapperFile = isWindows ? "mvnw.cmd" : "./mvnw";
+
+        try {
+            if (projectDir != null && !projectDir.isBlank()) {
+                Path projWrapper = securityService.resolve(projectDir + "/" + (isWindows ? "mvnw.cmd" : "mvnw"));
+                if (Files.exists(projWrapper)) {
+                    return isWindows ? ".\\mvnw.cmd" : "./mvnw";
+                }
+            }
+            Path rootWrapper = securityService.resolve(isWindows ? "mvnw.cmd" : "mvnw");
+            if (Files.exists(rootWrapper)) {
+                return isWindows ? ".\\mvnw.cmd" : "./mvnw";
+            }
+        } catch (Exception e) {
+            log.debug("Không thể kiểm tra mvn wrapper: {}", e.getMessage());
+        }
+
+        return "mvn";
     }
 
     /**
@@ -89,16 +115,35 @@ public class TestExecutionService {
     }
 
     /**
-     * Chạy unit test trong project Maven (mvn test)
+     * Xác minh biên dịch nhanh dự án Maven (test-compile -DskipTests)
+     */
+    public TestResult runMavenCompile(String projectDir) {
+        String mvn = resolveMavenCommand(projectDir);
+        String cmd = mvn + " test-compile -DskipTests";
+        log.info("Chạy xác minh biên dịch Maven tại '{}' với lệnh: {}", projectDir, cmd);
+
+        TerminalService.CommandResult result = terminalService.execute(cmd, projectDir, 60);
+        boolean passed = result.isSuccess();
+        String combined = result.stdout() + "\n" + result.stderr();
+
+        return new TestResult(passed, 0, passed ? 1 : 0, passed ? 0 : 1,
+                passed ? "Biên dịch dự án Maven (test-compile) THÀNH CÔNG!" : "Biên dịch dự án Maven THẤT BẠI.",
+                combined);
+    }
+
+    /**
+     * Chạy unit test trong project Maven (mvn test) với hỗ trợ fallback mvnw
      */
     public TestResult runMavenTests(String projectDir, String testClassName) {
+        String mvn = resolveMavenCommand(projectDir);
         String cmd;
         if (testClassName != null && !testClassName.isBlank()) {
-            cmd = "mvn test -Dtest=" + testClassName.trim();
+            cmd = mvn + " test -Dtest=" + testClassName.trim();
         } else {
-            cmd = "mvn test";
+            cmd = mvn + " test";
         }
 
+        log.info("Thực thi Maven tests tại '{}' bằng lệnh: {}", projectDir, cmd);
         TerminalService.CommandResult result = terminalService.execute(cmd, projectDir, 90);
         String combinedOutput = result.stdout() + "\n" + result.stderr();
 

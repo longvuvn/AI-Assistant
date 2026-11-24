@@ -1,8 +1,10 @@
 package mycomputer.project.ai_assistant.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -12,13 +14,16 @@ import reactor.core.publisher.Flux;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatAssistantServiceImpl implements ChatAssistantService {
 
-    @Value("${spring.ai.ollama.chat.model}")
+    @Value("${spring.ai.ollama.chat.model:qwen2.5:3b}")
     private String model;
 
     private final ChatClient chatClient;
     private final ChatClient memoryChatClient;
+    private final ChatMemory chatMemory;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public ChatResponseDto ask(String message) {
@@ -43,6 +48,7 @@ public class ChatAssistantServiceImpl implements ChatAssistantService {
     public ChatResponseDto askWithMemory(String conversationId, String message) {
         String answer = memoryChatClient
                 .prompt()
+                .user(message)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .call()
                 .content();
@@ -75,4 +81,17 @@ public class ChatAssistantServiceImpl implements ChatAssistantService {
         return ChatResponseDto.of(answer, model);
     }
 
+    @Override
+    public void clearConversation(String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return;
+        }
+        try {
+            chatMemory.clear(conversationId);
+            int rows = jdbcTemplate.update("DELETE FROM spring_ai_chat_memory WHERE conversation_id = ?", conversationId);
+            log.info("Đã xóa {} bản ghi lịch sử hội thoại cho conversationId: {}", rows, conversationId);
+        } catch (Exception e) {
+            log.warn("Lỗi khi xóa lịch sử hội thoại cho conversationId '{}': {}", conversationId, e.getMessage());
+        }
+    }
 }

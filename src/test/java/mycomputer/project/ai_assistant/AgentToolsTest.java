@@ -27,7 +27,8 @@ class AgentToolsTest {
 
     @BeforeEach
     void setUp() {
-        securityService = new WorkspaceSecurityService(tempWorkspace.toString());
+        securityService = new WorkspaceSecurityService();
+        securityService.setWorkspace(tempWorkspace.toString());
         fileSystemService = new FileSystemService(securityService);
         terminalService = new TerminalService(securityService);
         testExecutionService = new TestExecutionService(terminalService, securityService);
@@ -113,5 +114,46 @@ class AgentToolsTest {
 
         String search = projectAnalysisService.searchInFiles("class App", ".java");
         assertTrue(search.contains("App.java"));
+
+        // Kiểm tra phân tích dự án Spring Boot phát hiện cấu hình Database
+        fileSystemService.create("demo-app/pom.xml", "<project><modelVersion>4.0.0</modelVersion></project>");
+        fileSystemService.create("demo-app/src/main/resources/application.properties", "server.port=8080\n");
+        fileSystemService.create("demo-app/src/main/java/com/example/demo/DemoApplication.java",
+                "package com.example.demo;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n@SpringBootApplication\npublic class DemoApplication {}");
+
+        String springBootAnalysis = projectAnalysisService.analyzeSpringBootProject("demo-app");
+        assertNotNull(springBootAnalysis);
+        assertTrue(springBootAnalysis.contains("application.properties"));
+        assertTrue(springBootAnalysis.contains("CẤU HÌNH CƠ SỞ DỮ LIỆU"));
+        assertTrue(springBootAnalysis.contains("spring.datasource.url"));
+        assertTrue(springBootAnalysis.contains("jakarta.persistence"));
+    }
+
+    @Test
+    void testCodeGenerationScaffold() {
+        mycomputer.project.ai_assistant.core.tools.coding.CodeGenerationService codeGen = new mycomputer.project.ai_assistant.core.tools.coding.CodeGenerationService();
+        java.util.Map<String, String> files = codeGen.generateSpringCrudScaffold(
+                "com.example.shop",
+                "Product",
+                "String name, Double price, Integer stock"
+        );
+
+        assertNotNull(files);
+        assertTrue(files.containsKey("model/Product.java"));
+        assertTrue(files.containsKey("repository/ProductRepository.java"));
+        assertTrue(files.containsKey("dto/ProductRequest.java"));
+        assertTrue(files.containsKey("dto/ProductResponse.java"));
+        assertTrue(files.containsKey("service/ProductService.java"));
+        assertTrue(files.containsKey("service/impl/ProductServiceImpl.java"));
+        assertTrue(files.containsKey("controller/ProductController.java"));
+
+        String entityCode = files.get("model/Product.java");
+        assertTrue(entityCode.contains("package com.example.shop.model;"));
+        assertTrue(entityCode.contains("import jakarta.persistence.*;"));
+        assertTrue(entityCode.contains("private String name;"));
+        assertTrue(entityCode.contains("private Double price;"));
+
+        String apiResponseTemplate = codeGen.getTemplate("spring-api-response", "com.example.shop", "Product");
+        assertTrue(apiResponseTemplate.contains("ApiResponse"));
     }
 }
