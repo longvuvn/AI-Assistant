@@ -1,5 +1,6 @@
 package mycomputer.project.ai_assistant.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import mycomputer.project.ai_assistant.dto.request.chat.ChatRequestDto;
@@ -11,12 +12,7 @@ import mycomputer.project.ai_assistant.service.ChatAssistantService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
@@ -24,6 +20,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
+@Tag(name = "5. Chat Assistant", description = "Hỏi đáp và giải thích thuật toán có ghi nhớ hội thoại qua JDBC PostgreSQL")
 public class ChatController {
 
     private final ChatAssistantService chatAssistantService;
@@ -48,6 +45,16 @@ public class ChatController {
         return ResponseEntity.status(HttpStatus.OK).body(chatAssistantService.askWithMemory(
                 request.conversationId(),
                 request.message()));
+    }
+
+    @DeleteMapping("/conversation/{conversationId}")
+    public ResponseEntity<Map<String, Object>> clearConversation(@PathVariable String conversationId) {
+        chatAssistantService.clearConversation(conversationId);
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Đã xóa toàn bộ lịch sử hội thoại cho conversationId: " + conversationId,
+                "conversationId", conversationId
+        ));
     }
 
     @PostMapping("/explain")

@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -27,10 +29,10 @@ class AgentServiceIntegrationTest {
     void testLiveAgentExecution() {
         AgentRequest request = new AgentRequest(
                 "Viết class Java QuickSort và hàm main kiểm thử sắp xếp mảng số nguyên. Lưu vào workspace và chạy test kiểm tra.",
-                null,
                 "quicksort-demo"
         );
-        AgentResponseDto response = agentService.executeCodingTask(request);
+        String conversationId = UUID.randomUUID().toString();
+        AgentResponseDto response = agentService.executeCodingTask(conversationId, request);
         assertNotNull(response);
         assertNotNull(response.answer());
         System.out.println("Agent response: " + response.answer());

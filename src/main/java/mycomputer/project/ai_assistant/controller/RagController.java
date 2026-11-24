@@ -1,5 +1,6 @@
 package mycomputer.project.ai_assistant.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import mycomputer.project.ai_assistant.dto.request.rag.AskPdfRequest;
@@ -20,6 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/rag")
 @RequiredArgsConstructor
+@Tag(name = "4. RAG Knowledge Base", description = "Tải lên tài liệu PDF, phân mảnh và tìm kiếm ngữ nghĩa qua pgvector & bge-m3")
 public class RagController {
 
     private final RagService ragService;
@@ -57,5 +59,15 @@ public class RagController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ragService.askManual(request));
+    }
+
+    @DeleteMapping("/document/{documentId}")
+    public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable String documentId) {
+        ragService.deleteDocument(documentId);
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Đã xóa toàn bộ vector của tài liệu khỏi cơ sở dữ liệu: " + documentId,
+                "documentId", documentId
+        ));
     }
 }

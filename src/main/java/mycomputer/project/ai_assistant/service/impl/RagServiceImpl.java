@@ -1,6 +1,7 @@
 package mycomputer.project.ai_assistant.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mycomputer.project.ai_assistant.dto.request.rag.AskPdfRequest;
 import mycomputer.project.ai_assistant.dto.request.rag.PdfSearchRequest;
 import mycomputer.project.ai_assistant.dto.response.rag.AskPdfResponse;
@@ -15,6 +16,7 @@ import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.ai.document.Document;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,10 +29,12 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RagServiceImpl implements RagService {
 
     private final VectorStore vectorStore;
     private final ChatClient chatClient;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public UploadPdfResponse uploadAndIngest(MultipartFile file) {
@@ -116,40 +120,50 @@ public class RagServiceImpl implements RagService {
                 request.safeSimilarityThreshold()
         );
 
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
+        List<Document> matchedDocuments = vectorStore.similaritySearch(searchRequest);
 
-        String context = documents.stream()
+        String context = matchedDocuments.stream()
                 .map(Document::getText)
-                .collect(Collectors.joining("\n\n---\n\n"));
+                .collect(Collectors.joining("\n---\n"));
+
+        String prompt = """
+                Use the following context to answer the question.
+                If you do not know the answer, say that you do not know.
+
+                Context:
+                """ + context + """
+
+                Question:
+                """ + request.question() + """
+
+                Answer:
+                """;
 
         String answer = chatClient
                 .prompt()
-                .user(user -> user
-                        .text("""
-                    Dùng ngữ cảnh dưới đây từ tài liệu để trả lời câu hỏi.
-
-                    Ngữ cảnh:
-                    {context}
-
-                    Câu hỏi:
-                    {question}
-
-                    Quy tắc:
-                    - Ưu tiên thông tin trong ngữ cảnh và nêu tên file, số trang nếu có.
-                    - Nếu ngữ cảnh không đủ, nói rõ "tài liệu không đề cập đủ",
-                      rồi có thể bổ sung kiến thức chung, ghi rõ đó là kiến thức chung.
-                    - Trả lời bằng tiếng Việt, giữ nguyên thuật ngữ tiếng Anh quan trọng.
-                    """)
-                        .param("context", context)
-                        .param("question", request.question()))
+                .user(prompt)
                 .call()
                 .content();
 
-        List<PdfSourceDto> sources = documents.stream()
+        List<PdfSourceDto> sources = matchedDocuments.stream()
                 .map(this::toSource)
                 .toList();
 
         return new AskPdfResponse(answer, sources);
+    }
+
+    @Override
+    public void deleteDocument(String documentId) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("documentId không được để trống");
+        }
+        try {
+            int rows = jdbcTemplate.update("DELETE FROM vector_store WHERE metadata->>'documentId' = ?", documentId);
+            log.info("Đã xóa {} vector chunks cho documentId '{}'", rows, documentId);
+        } catch (Exception ex) {
+            log.error("Lỗi khi xóa vector chunks cho documentId '{}': {}", documentId, ex.getMessage(), ex);
+            throw new IllegalStateException("Không thể xóa tài liệu: " + ex.getMessage(), ex);
+        }
     }
 
     private List<Document> readPdfPages(Path pdfPath, String fileName, String documentId) {

@@ -11,7 +11,7 @@ public class FileSystemTool {
 
     private final FileSystemService fileSystemService;
 
-    @Tool(description = "Tạo mới hoặc ghi đè một tệp tin trong workspace với nội dung chỉ định. Tự động tạo thư mục cha nếu chưa có.")
+    @Tool(description = "Tạo mới hoặc ghi đè toàn bộ một tệp tin trong workspace. BẮT BUỘC DÙNG khi tạo file mới hoặc khi viết lại mã nguồn hoàn chỉnh của một file (như viết thuật toán mới, cấu trúc lại class).")
     public String createFile(
             @ToolParam(description = "Đường dẫn tương đối tới file trong workspace (ví dụ: 'Solution.java' hoặc 'src/main/java/Graph.java')") String path,
             @ToolParam(description = "Nội dung đầy đủ của file mã nguồn hoặc cấu hình cần ghi") String content) {
@@ -24,12 +24,19 @@ public class FileSystemTool {
         return fileSystemService.read(path);
     }
 
-    @Tool(description = "Sửa đổi một phần nội dung trong tệp tin bằng cách thay thế đoạn mã cũ bằng đoạn mã mới.")
+    @Tool(description = "Sửa đổi một vài dòng nhỏ trong file. TUYỆT ĐỐI KHÔNG dùng nếu replacementContent chứa cả một class hoàn chỉnh hoặc import (hãy dùng createFile để ghi đè thay thế). targetContent phải là đoạn mã cũ chính xác 100%.")
     public String updateFile(
             @ToolParam(description = "Đường dẫn tương đối tới file cần cập nhật") String path,
             @ToolParam(description = "Đoạn văn bản/mã nguồn cũ chính xác cần thay thế") String targetContent,
             @ToolParam(description = "Đoạn văn bản/mã nguồn mới thay thế vào") String replacementContent) {
         return fileSystemService.edit(path, targetContent, replacementContent);
+    }
+
+    @Tool(description = "Đổi tên hoặc di chuyển tệp tin/thư mục trong workspace từ đường dẫn cũ sang đường dẫn mới. Tự động đồng bộ tên class nếu là file Java. BẮT BUỘC DÙNG khi người dùng yêu cầu đổi tên file (rename).")
+    public String renameFile(
+            @ToolParam(description = "Đường dẫn tương đối tới file cũ (ví dụ: 'Hello.java' hoặc 'demo/Hello.java')") String oldPath,
+            @ToolParam(description = "Đường dẫn tương đối tới file mới (ví dụ: 'Algorithm.java' hoặc 'demo/Algorithm.java')") String newPath) {
+        return fileSystemService.rename(oldPath, newPath);
     }
 
     @Tool(description = "Xóa một tệp tin hoặc thư mục con trong workspace.")

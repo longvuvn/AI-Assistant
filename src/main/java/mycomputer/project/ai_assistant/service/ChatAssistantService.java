@@ -8,4 +8,5 @@ public interface ChatAssistantService {
     Flux<String> stream(String message);
     ChatResponseDto askWithMemory(String conversationId, String message);
     ChatResponseDto explainForBeginner(String topic, String audience);
+    void clearConversation(String conversationId);
 }
